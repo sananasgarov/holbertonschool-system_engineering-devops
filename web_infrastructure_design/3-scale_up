@@ -1,0 +1,45 @@
+User (Browser)
+  |
+  | DNS: www.foobar.com -> Virtual IP (VIP)
+  v
+           +----------------------------------+
+           |  HAProxy Cluster (Active-Passive)|
+           |  VIP floats via Keepalived/VRRP  |
+           +----------------------------------+
+             |                        |
+         [FW] |                    [FW] |
+             v                        v
+   +------------------+     +------------------+
+   | LB1: HAProxy     |     | LB2: HAProxy     |
+   | SSL termination  |     | Standby / Failover|
+   | Monitoring agent |     | Monitoring agent |
+   +------------------+     +------------------+
+             |
+             | (internal network)
+          [FW]
+             v
+   +------------------+      +------------------+
+   | Web1: Nginx      | <--> | Web2: Nginx      |
+   | static files     |      | static files     |
+   | reverse proxy    |      | reverse proxy    |
+   | Monitoring agent |      | Monitoring agent |
+   +------------------+      +------------------+
+             |
+             | (internal)
+          [FW]
+             v
+   +------------------+      +------------------+
+   | App1: App Server | <--> | App2: App Server |
+   | runs backend     |      | runs backend     |
+   | codebase         |      | codebase         |
+   | Monitoring agent |      | Monitoring agent |
+   +------------------+      +------------------+
+             |
+             | (internal)
+          [FW]
+             v
+   +------------------+      +------------------+
+   | DB Primary       | ---> | DB Replica       |
+   | MySQL (writes)   |      | MySQL (reads)    |
+   | Monitoring agent |      | Monitoring agent |
+   +------------------+      +------------------+

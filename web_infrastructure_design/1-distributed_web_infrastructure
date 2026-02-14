@@ -1,0 +1,67 @@
+User (Browser)
+   |
+   | DNS: www.foobar.com -> Load Balancer Public IP
+   v
++----------------------------+
+| Load Balancer (HAProxy)    |
+| - distributes traffic      |
+| - health checks backends   |
++----------------------------+
+      |                 |
+      |                 |
+      v                 v
++-------------------+  +-------------------+
+| App Server #1     |  | App Server #2     |
+| (single machine)  |  | (single machine)  |
+| - Nginx           |  | - Nginx           |
+| - App Server      |  | - App Server      |
+| - App files       |  | - App files       |
+| - MySQL           |  | - MySQL           |
++-------------------+  +-------------------+
+      |   (replication)        ^
+      +-------- Primary ------>+ Replica
+
+1) Load balancer (HAProxy)
+Why add it: To distribute incoming traffic across multiple servers so:
+the site can handle more users (scale out),
+if one app server fails, the other can still serve traffic (higher availability),
+you can do maintenance on one server while the other still runs (reduced downtime).
+2) Second server (App Server #2)
+Why add it: Redundancy + capacity.
+Without it, one server outage = website down.
+With two, one can fail and the site still works (as long as the load balancer routes only to healthy backends).
+3) Database Primary–Replica setup
+Why add it: Data availability and performance (especially read performance).
+Primary handles writes.
+
+Load balancer distribution algorithm
+
+Configured algorithm: roundrobin
+HAProxy sends the 1st request to Server #1, next to Server #2, then back to #1, and so on.Spread traffic evenly when both servers have similar capacity.
+Active-Active vs Active-Passive for the load balancer
+Is the load balancer enabling Active-Active or Active-Passive here?
+Both App Server #1 and #2 are active and receiving traffic at the same time.
+Active-Active: multiple servers handle traffic simultaneously.
+Active-Passive: one server handles traffic, the other waits as standby.
+
+How a Primary–Replica (Master–Slave) MySQL cluster works
+Primary (Master) receives all writes (INSERT/UPDATE/DELETE).
+Primary records changes in a binary log (binlog).
+Replica (Slave) continuously pulls or receives those changes and replays them to keep a near-identical copy.
+Replication is usually asynchronous:
+Replica might lag behind the Primary by seconds (or more under load).
+Difference between Primary and Replica for the application
+Primary node:
+Used for writes (and often also critical reads that must be up-to-date).
+Source of truth.
+Replica node:
+Used for reads to reduce load on Primary.
+Data may be slightly behind (replication lag), so it’s not ideal for “read-your-write immediately” features unless handled carefully.
+
+
+
+
+
+
+
+Replica can handle reads and provides a fallback copy of data.

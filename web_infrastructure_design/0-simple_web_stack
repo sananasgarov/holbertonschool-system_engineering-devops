@@ -1,0 +1,51 @@
+-------------------------------------------------
+what happens when someone visits your site
+A user opens a browser and types www.foobar.com.
+The browser asks DNS: “What IP address is www.foobar.com?”
+DNS responds: 8.8.8.8 (your server’s public IP).
+The browser connects to 8.8.8.8 using TCP/IP (and usually TLS if HTTPS).
+On the server:
+Nginx (web server) receives the HTTP(S) request.
+Nginx forwards the request to the application server (where your backend runs).
+The application server reads your application files (your codebase) and may query MySQL.
+MySQL returns data to the application server.
+The application server generates a response (HTML/JSON/etc.) and returns it to Nginx.
+Nginx sends the response back to the user’s browser.
+-------------------------------------------------
+what’s on the single machine
+Domain / DNS
+Domain: foobar.com
+Record: www.foobar.com → 8.8.8.8
+Single Server (IP: 8.8.8.8) contains:
+Web server: Nginx (handles HTTP/HTTPS, serves static files, reverse proxy)
+Application server: runs your backend app (e.g., Gunicorn/uwsgi/Node/Java, etc.)
+Application files: your codebase (controllers, templates, assets, configs)
+Database: MySQL (stores persistent data)
+--------------------------------------------------
+A server is a computer (physical or virtual) that provides services to other computers (“clients”) over a network—like serving web pages, running application logic, or storing data.
+A domain name (like foobar.com) is a human-friendly name that maps to an IP address. People remember names; computers route traffic using IPs.
+www is typically an A record (Address record) if it points directly to an IP like 8.8.8.8.
+(Alternative in real setups: it could be a CNAME pointing to another hostname, but your requirement says it points to an IP, so A record.)
+web server
+Accepts incoming HTTP/HTTPS requests
+Terminates TLS (if using HTTPS)
+Serves static files (images, CSS, JS) efficiently
+Acts as a reverse proxy to forward dynamic requests to the application server
+Can do caching, compression, rate limiting, logging
+application server
+Runs your application logic (routes, auth, business rules)
+Generates dynamic responses (HTML pages, APIs)
+Communicates with MySQL (and other services if needed)
+role of database (MySQL)
+Stores and retrieves persistent data: users, posts, orders, sessions, etc.
+Provides querying, indexing, transactions, constraints, backups (when configured)
+communication with the user’s computer
+It uses the TCP/IP network stack and the HTTP/HTTPS protocol:
+IP to route to/from the correct machines
+TCP to establish reliable connections
+HTTP (or HTTPS = HTTP + TLS encryption) to exchange web requests/responses
+1)SPOF (Single Point of Failure)
+Everything is on one server and If the server goes down, the website, app, and database all go down.If the disk fails, you can lose the database and code unless you have backups elsewhere.
+2)Downtime during maintenance / deployments
+Database migrations can also lock tables or slow queries, causing visible downtime.
+3)Cannot scale well with high traffic

@@ -1,0 +1,101 @@
+User (Browser)
+  |
+  | 1) DNS: www.foobar.com -> LB Public IP
+  | 2) HTTPS request (TLS)
+  v
+ [Firewall #1]
+  |
+  v
++--------------------------------------+
+| Load Balancer (HAProxy)              |
+| - Terminates SSL (has cert)          |
+| - Routes traffic to backend servers  |
+| - Health checks                      |
+| - Monitoring client (agent)          |
++--------------------------------------+
+                 | (internal network)
+         -------------------------
+         |                       |
+     [Firewall #2]           [Firewall #3]
+         |                       |
+         v                       v
++----------------------+   +----------------------+
+| App Server #1        |   | App Server #2        |
+| - Nginx              |   | - Nginx              |
+| - Application server |   | - Application server |
+| - App files          |   | - App files          |
+| - MySQL (Replica)    |   | - MySQL (Primary)    |
+| - Monitoring agent   |   | - Monitoring agent   |
++----------------------+   +----------------------+
+            ^                        |
+            |   MySQL replication    |
+            +------------------------+
+         (Primary -> Replica)
+
+3 firewalls (one per server)
+Why add them: To control inbound/outbound traffic and reduce the attack surface.
+Typical rules:
+LB firewall: allow 443 (HTTPS) from the internet; allow 22 (SSH) only from trusted IPs; allow backend traffic only to app servers.
+App server firewalls: allow only traffic from LB (e.g., 80/443 internal or app port); block public MySQL access.
+DB access: allow MySQL (3306) only between the two DB nodes (replication) and from local app if needed.
+2) 1 SSL certificate (for www.foobar.com)
+Why add it: To enable HTTPS so traffic is encrypted and authenticated (users know they are talking to your real domain).
+3) 3 monitoring clients (agents)
+Why add them: To collect logs and metrics from each machine (LB + both app servers) so you can detect incidents, performance regressions, security events, and capacity problems.
+What are firewalls for?
+A firewall filters network traffic using rules (allow/deny by port, protocol, IP range). Main goals:
+Prevent unauthorized access (e.g., blocking public MySQL)
+Limit damage if something is compromised (reduce lateral movement)
+Enforce “least privilege” networking (only required ports are open)
+Why is the traffic served over HTTPS?
+HTTPS (HTTP over TLS) provides:
+Confidentiality: attackers can’t read passwords/cookies/data in transit
+Integrity: attackers can’t silently modify traffic
+Authentication: certificate helps prove the server is really www.foobar.com
+Modern browsers also penalize or warn on non-HTTPS sites, especially for logins.
+What monitoring is used for?
+Monitoring is used to:
+Detect failures (server down, high error rate, DB lag)
+Track performance (latency, CPU, memory, disk, network)
+Observe application health (500 errors, slow endpoints)
+Support incident response (logs + metrics + alerts)
+Plan capacity (traffic trends, saturation)
+How the monitoring tool collects data
+A common setup (Sumo Logic / Datadog / Prometheus-style) is:
+Monitoring agent (client) runs on each server
+Collects logs (e.g., Nginx access/error logs, HAProxy logs, app logs, MySQL logs)
+Collects metrics (CPU, RAM, disk, network, process health)
+The agent ships data securely to the monitoring service:
+Push model: agent sends data over HTTPS to the vendor endpoint
+Pull model (Prometheus): a central server scrapes metrics endpoints
+What to do if you want to monitor your web server 
+QPS = Queries (Requests) Per Second on the web server.
+Practical approach:
+Enable and collect Nginx access logs on both app servers.
+Use monitoring to compute:
+QPS = (number of requests in a time window) / (window seconds)
+Implementation options:
+Log-based metric: parse access logs and count requests per second/minute.
+Metric endpoint: enable Nginx status (stub_status) or exporter and scrape it.
+Add an alert:
+Example: QPS drops to near-zero (site down) or spikes unusually (possible attack).
+Issues with this infrastructure (important explanations)
+1) Why terminating SSL at the load balancer level is an issue
+If SSL is terminated at the load balancer:
+Traffic from LB → backend servers may be unencrypted (HTTP) unless you also encrypt internally.
+Anyone with access to the internal network could potentially sniff traffic.
+You must trust the internal network completely, which is risky in some environments.
+Mitigation: use TLS between LB and backends too (re-encrypt), or run a private network with strict controls.
+2) Why having only one MySQL server capable of accepting writes is an issue
+With Primary–Replica:
+Only the Primary accepts writes.
+If Primary fails, writes stop until failover/promoting a replica.
+Failover can cause downtime and risks data loss if replication lag exists.
+Mitigation: automatic failover tooling, or more advanced DB clustering (and solid backup strategy).
+3) Why having servers with all the same components might be a problem
+If each server contains web + app + database components:
+Resource contention: MySQL can consume CPU/RAM and hurt app performance on the same box.
+Complexity: harder deployments and troubleshooting (many moving parts per machine).
+Security risk: compromise of one server may expose DB on that server too.
+Scaling limits: you often want to scale web/app independently from the database.
+Better practice (in real production): separate tiers (LB + app servers + dedicated DB servers).
